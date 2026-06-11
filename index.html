@@ -28,6 +28,8 @@ body{font-family:'Nunito Sans',Arial,sans-serif;font-size:13px;color:var(--ink);
 .tb-divider{width:1px;height:22px;background:var(--border);flex-shrink:0}
 .tb-product{font-size:13px;font-weight:600;color:var(--blu);letter-spacing:-0.01em}
 .tb-badge{margin-left:auto;font-size:10px;color:var(--ink-faint);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:2px 9px;font-weight:500}
+.tb-key-btn{background:none;border:1px solid var(--border);border-radius:8px;padding:2px 7px;font-size:12px;cursor:pointer;color:var(--ink-faint);line-height:1.4;}
+.tb-key-btn:hover{background:var(--bg);color:var(--ink)}
 
 /* ── TABS ── */
 .tabbar{background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:stretch;padding:0 20px;flex-shrink:0;overflow-x:auto;gap:0}
@@ -158,6 +160,7 @@ body{font-family:'Nunito Sans',Arial,sans-serif;font-size:13px;color:var(--ink);
   <div class="tb-divider"></div>
   <span class="tb-product">Personicx Media Intelligence</span>
   <span class="tb-badge">Nielsen-Scarborough R223</span>
+  <button class="tb-key-btn" title="Set API key for AI features" onclick="(function(){const k=prompt('Anthropic API key (leave blank to clear):',sessionStorage.getItem('pmi_api_key')||'');if(k===null)return;k.trim()?sessionStorage.setItem('pmi_api_key',k.trim()):sessionStorage.removeItem('pmi_api_key');})()">&#x1F511;</button>
 </div>
 <div class="tabbar" id="tabbar"></div>
 <div class="panels" id="panels"></div>
@@ -472,11 +475,30 @@ function fmtAI(text){
 }
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 async function callAI(system,messages,maxTokens){
+  let key=sessionStorage.getItem('pmi_api_key');
+  if(!key){
+    key=prompt('Enter your Anthropic API key to enable AI features:\n(It will be stored for this session only)');
+    if(!key)throw new Error('No API key provided');
+    sessionStorage.setItem('pmi_api_key',key.trim());
+  }
   const body={model:'claude-sonnet-4-20250514',max_tokens:maxTokens,messages};
   if(system)body.system=system;
-  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const r=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key':key,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-request-origin':'https://reflex-blu.github.io'
+    },
+    body:JSON.stringify(body)
+  });
   const d=await r.json();
-  if(d.error){console.error('API error:',d.error);throw new Error(d.error.message);}
+  if(d.error){
+    if(d.error.type==='authentication_error'){sessionStorage.removeItem('pmi_api_key');}
+    console.error('API error:',d.error);
+    throw new Error(d.error.message);
+  }
   if(!d.content||!d.content[0])throw new Error('no content: '+JSON.stringify(d));
   return d.content[0].text;
 }
